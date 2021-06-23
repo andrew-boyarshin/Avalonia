@@ -1,33 +1,39 @@
 ﻿using System;
+using System.Diagnostics;
 using System.IO;
 using Avalonia.Platform;
 using Avalonia.Rendering;
 using Avalonia.Utilities;
-using SharpDX;
-using SharpDX.Direct2D1;
-using D2DBitmap = SharpDX.Direct2D1.Bitmap;
+using Vortice.Direct2D1;
+using D2DBitmap = Vortice.Direct2D1.ID2D1Bitmap;
 
 namespace Avalonia.Direct2D1.Media.Imaging
 {
     public class D2DRenderTargetBitmapImpl : D2DBitmapImpl, IDrawingContextLayerImpl, ILayerFactory
     {
-        private readonly BitmapRenderTarget _renderTarget;
+        private readonly ID2D1BitmapRenderTarget _renderTarget;
 
-        public D2DRenderTargetBitmapImpl(BitmapRenderTarget renderTarget)
+        public D2DRenderTargetBitmapImpl(ID2D1BitmapRenderTarget renderTarget)
             : base(renderTarget.Bitmap)
         {
+            Debug.WriteLine($"D2DRenderTargetBitmapImpl::new(0x{renderTarget.NativePointer.ToInt64():X}) Bitmap:0x{renderTarget.Bitmap.NativePointer.ToInt64():X}");
             _renderTarget = renderTarget;
         }
 
+        public D2DRenderTargetBitmapImpl(RenderTarget renderTarget) : this(renderTarget.Impl)
+        {
+        }
+
         public static D2DRenderTargetBitmapImpl CreateCompatible(
-            SharpDX.Direct2D1.RenderTarget renderTarget,
+            ID2D1RenderTarget renderTarget,
             Size size)
         {
-            var bitmapRenderTarget = new BitmapRenderTarget(
-                renderTarget,
-                CompatibleRenderTargetOptions.None,
-                new Size2F((float)size.Width, (float)size.Height));
-            return new D2DRenderTargetBitmapImpl(bitmapRenderTarget);
+            return new D2DRenderTargetBitmapImpl(
+                renderTarget.CreateCompatibleRenderTarget(
+                    new System.Drawing.SizeF((float)size.Width, (float)size.Height),
+                    CompatibleRenderTargetOptions.None
+                )
+            );
         }
 
         public IDrawingContextImpl CreateDrawingContext(IVisualBrushRenderer visualBrushRenderer)
@@ -46,12 +52,9 @@ namespace Avalonia.Direct2D1.Media.Imaging
 
         public override void Dispose()
         {
+            // Intentionally ignore base.Dispose (ID2D1BitmapRenderTarget.ReleaseBitmap)
+            Debug.WriteLine($"D2DRenderTargetBitmapImpl::Dispose(0x{_renderTarget.NativePointer.ToInt64():X}) Stack: {new StackTrace()}");
             _renderTarget.Dispose();
-        }
-
-        public override OptionalDispose<D2DBitmap> GetDirect2DBitmap(SharpDX.Direct2D1.RenderTarget target)
-        {
-            return new OptionalDispose<D2DBitmap>(_renderTarget.Bitmap, false);
         }
 
         public override void Save(Stream stream)

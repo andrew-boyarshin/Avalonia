@@ -20,7 +20,7 @@ namespace Avalonia
             if (os == OperatingSystemType.WinNT)
             {
                 LoadWin32(builder);
-                LoadSkia(builder);
+                LoadDirect2D(builder);
             }
             else if(os==OperatingSystemType.OSX)
             {
@@ -49,5 +49,9 @@ namespace Avalonia
         static void LoadSkia<TAppBuilder>(TAppBuilder builder)
             where TAppBuilder : AppBuilderBase<TAppBuilder>, new()
              => builder.UseSkia();
+
+        static void LoadDirect2D<TAppBuilder>(TAppBuilder builder)
+            where TAppBuilder : AppBuilderBase<TAppBuilder>, new()
+             => builder.UseDirect2D1();
     }
 }

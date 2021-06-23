@@ -1,7 +1,10 @@
-using SharpDX;
-using SharpDX.Direct2D1;
-using SharpDX.DirectWrite;
-using SharpDX.Mathematics.Interop;
+using System;
+using System.Drawing;
+using System.Numerics;
+using SharpGen.Runtime;
+using Vortice.DCommon;
+using Vortice.Direct2D1;
+using Vortice.DirectWrite;
 
 namespace Avalonia.Direct2D1.Media
 {
@@ -9,28 +12,28 @@ namespace Avalonia.Direct2D1.Media
     {
         private readonly DrawingContextImpl _context;
 
-        private readonly SharpDX.Direct2D1.RenderTarget _renderTarget;
+        private readonly ID2D1RenderTarget _renderTarget;
 
-        private readonly Brush _foreground;
+        private readonly ID2D1Brush _foreground;
 
         public AvaloniaTextRenderer(
             DrawingContextImpl context,
-            SharpDX.Direct2D1.RenderTarget target,
-            Brush foreground)
+            ID2D1RenderTarget target,
+            ID2D1Brush foreground)
         {
             _context = context;
             _renderTarget = target;
             _foreground = foreground;
         }
 
-        public override Result DrawGlyphRun(
-            object clientDrawingContext,
+        public override void DrawGlyphRun(
+            IntPtr clientDrawingContext,
             float baselineOriginX,
             float baselineOriginY,
             MeasuringMode measuringMode,
             GlyphRun glyphRun,
             GlyphRunDescription glyphRunDescription,
-            ComObject clientDrawingEffect)
+            IUnknown clientDrawingEffect)
         {
             var wrapper = clientDrawingEffect as BrushWrapper;
 
@@ -40,7 +43,7 @@ namespace Avalonia.Direct2D1.Media
                 _context.CreateBrush(wrapper.Brush, default).PlatformBrush;
 
             _renderTarget.DrawGlyphRun(
-                new RawVector2 { X = baselineOriginX, Y = baselineOriginY },
+                new PointF { X = baselineOriginX, Y = baselineOriginY },
                 glyphRun,
                 brush,
                 measuringMode);
@@ -49,18 +52,16 @@ namespace Avalonia.Direct2D1.Media
             {
                 brush.Dispose();
             }
-
-            return Result.Ok;
         }
 
-        public override RawMatrix3x2 GetCurrentTransform(object clientDrawingContext)
+        public override Matrix3x2 GetCurrentTransform(IntPtr clientDrawingContext)
         {
             return _renderTarget.Transform;
         }
 
-        public override float GetPixelsPerDip(object clientDrawingContext)
+        public override  float GetPixelsPerDip(IntPtr clientDrawingContext)
         {
-            return _renderTarget.DotsPerInch.Width / 96;
+            return _renderTarget.Dpi.Width / 96;
         }
     }
 }

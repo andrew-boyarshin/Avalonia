@@ -2,17 +2,16 @@ using System;
 using Avalonia.Logging;
 using Avalonia.Media;
 using Avalonia.Platform;
-using SharpDX.Direct2D1;
-using D2D = SharpDX.Direct2D1;
-using SweepDirection = SharpDX.Direct2D1.SweepDirection;
+using Vortice.Direct2D1;
+using SweepDirection = Vortice.Direct2D1.SweepDirection;
 
 namespace Avalonia.Direct2D1.Media
 {
     public class StreamGeometryContextImpl : IStreamGeometryContextImpl
     {
-        private readonly GeometrySink _sink;
+        private readonly ID2D1GeometrySink _sink;
 
-        public StreamGeometryContextImpl(GeometrySink sink)
+        public StreamGeometryContextImpl(ID2D1GeometrySink sink)
         {
             _sink = sink;
         }
@@ -24,10 +23,10 @@ namespace Avalonia.Direct2D1.Media
             bool isLargeArc,
             Avalonia.Media.SweepDirection sweepDirection)
         {
-            _sink.AddArc(new D2D.ArcSegment
+            _sink.AddArc(new Vortice.Direct2D1.ArcSegment
             {
-                Point = point.ToSharpDX(),
-                Size = size.ToSharpDX(),
+                Point = point.ToVortice(),
+                Size = size.ToVortice(),
                 RotationAngle = (float)rotationAngle,
                 ArcSize = isLargeArc ? ArcSize.Large : ArcSize.Small,
                 SweepDirection = (SweepDirection)sweepDirection,
@@ -36,31 +35,31 @@ namespace Avalonia.Direct2D1.Media
 
         public void BeginFigure(Point startPoint, bool isFilled)
         {
-            _sink.BeginFigure(startPoint.ToSharpDX(), isFilled ? FigureBegin.Filled : FigureBegin.Hollow);
+            _sink.BeginFigure(startPoint.ToVortice(), isFilled ? FigureBegin.Filled : FigureBegin.Hollow);
         }
 
         public void CubicBezierTo(Point point1, Point point2, Point point3)
         {
-            _sink.AddBezier(new D2D.BezierSegment
+            _sink.AddBezier(new Vortice.Direct2D1.BezierSegment
             {
-                Point1 = point1.ToSharpDX(),
-                Point2 = point2.ToSharpDX(),
-                Point3 = point3.ToSharpDX(),
+                Point1 = point1.ToVortice(),
+                Point2 = point2.ToVortice(),
+                Point3 = point3.ToVortice(),
             });
         }
 
         public void QuadraticBezierTo(Point control, Point dest)
         {
-            _sink.AddQuadraticBezier(new D2D.QuadraticBezierSegment
+            _sink.AddQuadraticBezier(new Vortice.Direct2D1.QuadraticBezierSegment
             {
-                Point1 = control.ToSharpDX(),
-                Point2 = dest.ToSharpDX()
+                Point1 = control.ToVortice(),
+                Point2 = dest.ToVortice()
             });
         }
 
         public void LineTo(Point point)
         {
-            _sink.AddLine(point.ToSharpDX());
+            _sink.AddLine(point.ToVortice());
         }
 
         public void EndFigure(bool isClosed)

@@ -4,6 +4,9 @@ using Avalonia.Controls.Shapes;
 using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Media.Imaging;
+#if !AVALONIA_SKIA
+using SharpGen.Runtime;
+#endif
 using Xunit;
 
 #if AVALONIA_SKIA
@@ -17,6 +20,9 @@ namespace Avalonia.Direct2D1.RenderTests.Media
         public ImageBrushTests()
             : base(@"Media\ImageBrush")
         {
+#if !AVALONIA_SKIA
+            Configuration.EnableObjectLifetimeTracing = true;
+#endif
         }
 
         private string BitmapPath

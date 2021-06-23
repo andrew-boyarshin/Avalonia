@@ -1,0 +1,8 @@
+{
+  "profiles": {
+    "Avalonia.Direct2D1.RenderTests": {
+      "commandName": "Project",
+      "nativeDebugging": true
+    }
+  }
+}

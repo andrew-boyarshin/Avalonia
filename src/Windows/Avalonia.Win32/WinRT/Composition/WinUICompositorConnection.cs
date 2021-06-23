@@ -17,12 +17,10 @@ namespace Avalonia.Win32.WinRT.Composition
     class WinUICompositorConnection : IRenderTimer
     {
         private readonly EglContext _syncContext;
-        private IntPtr _queue;
         private ICompositor _compositor;
         private ICompositor2 _compositor2;
         private ICompositor5 _compositor5;
         private ICompositorInterop _compositorInterop;
-        private AngleWin32EglDisplay _angle;
         private ICompositionGraphicsDevice _device;
         private EglPlatformOpenGlInterface _gl;
         private ICompositorDesktopInterop _compositorDesktopInterop;
@@ -34,13 +32,13 @@ namespace Avalonia.Win32.WinRT.Composition
             _gl = gl;
             _pumpLock = pumpLock;
             _syncContext = _gl.PrimaryEglContext;
-            _angle = (AngleWin32EglDisplay)_gl.Display;
+            var angle = (AngleWin32EglDisplay)_gl.Display;
             _compositor = NativeWinRTMethods.CreateInstance<ICompositor>("Windows.UI.Composition.Compositor");
             _compositor2 = _compositor.QueryInterface<ICompositor2>();
             _compositor5 = _compositor.QueryInterface<ICompositor5>();
             _compositorInterop = _compositor.QueryInterface<ICompositorInterop>();
             _compositorDesktopInterop = _compositor.QueryInterface<ICompositorDesktopInterop>();
-            using var device = MicroComRuntime.CreateProxyFor<IUnknown>(_angle.GetDirect3DDevice(), true);
+            using var device = MicroComRuntime.CreateProxyFor<IUnknown>(angle.GetDirect3DDevice(), true);
             
             _device = _compositorInterop.CreateGraphicsDevice(device);
             _blurBrush = CreateBlurBrush();

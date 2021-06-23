@@ -13,7 +13,7 @@ namespace Avalonia.Win32.WinRT.Composition
     {
         private readonly WinUICompositorConnection _connection;
         private EglPlatformOpenGlInterface _egl;
-        private readonly EglGlPlatformSurfaceBase.IEglWindowGlPlatformSurfaceInfo _info;
+        private readonly IEglWindowGlPlatformSurfaceInfo _info;
         private IRef<WinUICompositedWindow> _window;
         private bool _enableBlur;
 

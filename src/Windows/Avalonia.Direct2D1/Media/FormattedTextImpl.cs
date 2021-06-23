@@ -2,7 +2,7 @@ using System.Collections.Generic;
 using System.Linq;
 using Avalonia.Media;
 using Avalonia.Platform;
-using DWrite = SharpDX.DirectWrite;
+using DWrite = Vortice.DirectWrite;
 
 namespace Avalonia.Direct2D1.Media
 {
@@ -21,8 +21,7 @@ namespace Avalonia.Direct2D1.Media
 
             var font = ((GlyphTypefaceImpl)typeface.GlyphTypeface.PlatformImpl).DWFont;
             var familyName = font.FontFamily.FamilyNames.GetString(0);
-            using (var textFormat = new DWrite.TextFormat(
-                Direct2D1Platform.DirectWriteFactory, 
+            using (var textFormat = Direct2D1Platform.DirectWriteFactory.CreateTextFormat(
                 familyName, 
                 font.FontFamily.FontCollection, 
                 (DWrite.FontWeight)typeface.Weight,
@@ -33,12 +32,12 @@ namespace Avalonia.Direct2D1.Media
                 textFormat.WordWrapping =
                     wrapping == TextWrapping.Wrap ? DWrite.WordWrapping.Wrap : DWrite.WordWrapping.NoWrap;
 
-                TextLayout = new DWrite.TextLayout(
-                    Direct2D1Platform.DirectWriteFactory,
+                TextLayout = Direct2D1Platform.DirectWriteFactory.CreateTextLayout(
                     Text ?? string.Empty,
                     textFormat,
                     (float)constraint.Width,
-                    (float)constraint.Height) { TextAlignment = textAlignment.ToDirect2D() };
+                    (float)constraint.Height);
+                TextLayout.TextAlignment = textAlignment.ToDirect2D();
             }
 
             if (spans != null)
@@ -58,21 +57,23 @@ namespace Avalonia.Direct2D1.Media
 
         public string Text { get; }
 
-        public DWrite.TextLayout TextLayout { get; }
+        public DWrite.IDWriteTextLayout TextLayout { get; }
 
         public IEnumerable<FormattedTextLine> GetLines()
         {
-            var result = TextLayout.GetLineMetrics();
+            var result = TextLayout.LineMetrics;
             return from line in result select new FormattedTextLine(line.Length, line.Height);
         }
 
         public TextHitTestResult HitTestPoint(Point point)
         {
-            var result = TextLayout.HitTestPoint(
+            TextLayout.HitTestPoint(
                 (float)point.X,
                 (float)point.Y,
                 out var isTrailingHit,
-                out var isInside);
+                out var isInside,
+                out DWrite.HitTestMetrics result
+            );
 
             return new TextHitTestResult
             {
@@ -84,7 +85,7 @@ namespace Avalonia.Direct2D1.Media
 
         public Rect HitTestTextPosition(int index)
         {
-            var result = TextLayout.HitTestTextPosition(index, false, out _, out _);
+            TextLayout.HitTestTextPosition(index, false, out _, out _, out DWrite.HitTestMetrics result);
 
             return new Rect(result.Left, result.Top, result.Width, result.Height);
         }
@@ -103,7 +104,8 @@ namespace Avalonia.Direct2D1.Media
                 {
                     TextLayout.SetDrawingEffect(
                         new BrushWrapper(span.ForegroundBrush.ToImmutable()),
-                        new DWrite.TextRange(span.StartIndex, span.Length));
+                        new DWrite.TextRange { StartPosition = span.StartIndex, Length = span.Length }
+                        );
                 }
             }
         }

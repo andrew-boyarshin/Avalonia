@@ -11,6 +11,8 @@ using Avalonia.Dialogs;
 using Avalonia.Headless;
 using Avalonia.LogicalTree;
 using Avalonia.Threading;
+using SharpGen.Runtime;
+using SharpGen.Runtime.Diagnostics;
 
 namespace ControlCatalog.NetCore
 {
@@ -100,6 +102,25 @@ namespace ControlCatalog.NetCore
                 return builder.StartWithClassicDesktopLifetime(args);
         }
 
+        private static int StartWithClassicDesktopLifetime<T>(
+            this T builder, string[] args, ShutdownMode shutdownMode = ShutdownMode.OnLastWindowClose)
+            where T : AppBuilderBase<T>, new()
+        {
+            var lifetime = new ClassicDesktopStyleApplicationLifetime
+            {
+                Args = args,
+                ShutdownMode = shutdownMode
+            };
+            lifetime.Exit += LifetimeOnExit;
+            builder.SetupWithLifetime(lifetime);
+            return lifetime.Start(args);
+        }
+
+        private static void LifetimeOnExit(object sender, ControlledApplicationLifetimeExitEventArgs e)
+        {
+            Debug.WriteLine(ObjectTracker.ReportActiveObjects());
+        }
+
         /// <summary>
         /// This method is needed for IDE previewer infrastructure
         /// </summary>
@@ -116,7 +137,7 @@ namespace ControlCatalog.NetCore
                 {
                     EnableMultitouch = true
                 })
-                .UseSkia()
+                .UseDirect2D1()
                 .UseManagedSystemDialogs()
                 .LogToTrace();
 

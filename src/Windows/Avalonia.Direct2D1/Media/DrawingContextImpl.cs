@@ -6,10 +6,12 @@ using Avalonia.Rendering;
 using Avalonia.Rendering.SceneGraph;
 using Avalonia.Utilities;
 using Avalonia.Visuals.Media.Imaging;
-using SharpDX;
-using SharpDX.Direct2D1;
-using SharpDX.Mathematics.Interop;
+using Vortice.DXGI;
+using Vortice.Direct2D1;
 using BitmapInterpolationMode = Avalonia.Visuals.Media.Imaging.BitmapInterpolationMode;
+using SharpGen.Runtime;
+using System.Numerics;
+using Avalonia.Direct2D1.Media.Imaging;
 
 namespace Avalonia.Direct2D1.Media
 {
@@ -20,10 +22,10 @@ namespace Avalonia.Direct2D1.Media
     {
         private readonly IVisualBrushRenderer _visualBrushRenderer;
         private readonly ILayerFactory _layerFactory;
-        private readonly SharpDX.Direct2D1.RenderTarget _renderTarget;
-        private readonly DeviceContext _deviceContext;
+        private readonly ID2D1RenderTarget _renderTarget;
+        private readonly ID2D1DeviceContext _deviceContext;
         private readonly bool _ownsDeviceContext;
-        private readonly SharpDX.DXGI.SwapChain1 _swapChain;
+        private readonly IDXGISwapChain1 _swapChain;
         private readonly Action _finishedCallback;
 
         /// <summary>
@@ -40,8 +42,8 @@ namespace Avalonia.Direct2D1.Media
         public DrawingContextImpl(
             IVisualBrushRenderer visualBrushRenderer,
             ILayerFactory layerFactory,
-            SharpDX.Direct2D1.RenderTarget renderTarget,
-            SharpDX.DXGI.SwapChain1 swapChain = null,
+            Vortice.Direct2D1.ID2D1RenderTarget renderTarget,
+            Vortice.DXGI.IDXGISwapChain1 swapChain = null,
             Action finishedCallback = null)
         {
             _visualBrushRenderer = visualBrushRenderer;
@@ -50,14 +52,14 @@ namespace Avalonia.Direct2D1.Media
             _swapChain = swapChain;
             _finishedCallback = finishedCallback;
 
-            if (_renderTarget is DeviceContext deviceContext)
+            if (_renderTarget is ID2D1DeviceContext deviceContext)
             {
                 _deviceContext = deviceContext;
                 _ownsDeviceContext = false;
             }
             else
             {
-                _deviceContext = _renderTarget.QueryInterface<DeviceContext>();
+                _deviceContext = _renderTarget.QueryInterface<ID2D1DeviceContext>();
                 _ownsDeviceContext = true;
             }
 
@@ -93,10 +95,10 @@ namespace Avalonia.Direct2D1.Media
             {
                 _deviceContext.EndDraw();
 
-                _swapChain?.Present(1, SharpDX.DXGI.PresentFlags.None);
+                _swapChain?.Present(1, PresentFlags.None);
                 _finishedCallback?.Invoke();
             }
-            catch (SharpDXException ex) when ((uint)ex.HResult == 0x8899000C) // D2DERR_RECREATE_TARGET
+            catch (SharpGenException ex) when ((uint)ex.HResult == 0x8899000C) // D2DERR_RECREATE_TARGET
             {
                 throw new RenderTargetCorruptedException(ex);
             }
@@ -127,10 +129,10 @@ namespace Avalonia.Direct2D1.Media
                 
                 _deviceContext.DrawBitmap(
                     d2d.Value,
-                    destRect.ToSharpDX(),
+                    destRect.ToVortice(),
                     (float)opacity,
                     interpolationMode,
-                    sourceRect.ToSharpDX(),
+                    sourceRect.ToVortice(),
                     null);
             }
         }
@@ -191,9 +193,9 @@ namespace Avalonia.Direct2D1.Media
         public void DrawBitmap(IRef<IBitmapImpl> source, IBrush opacityMask, Rect opacityMaskRect, Rect destRect)
         {
             using (var d2dSource = ((BitmapImpl)source.Item).GetDirect2DBitmap(_deviceContext))
-            using (var sourceBrush = new BitmapBrush(_deviceContext, d2dSource.Value))
+            using (var sourceBrush = _deviceContext.CreateBitmapBrush(d2dSource.Value, null, null))
             using (var d2dOpacityMask = CreateBrush(opacityMask, opacityMaskRect))
-            using (var geometry = new SharpDX.Direct2D1.RectangleGeometry(Direct2D1Platform.Direct2D1Factory, destRect.ToDirect2D()))
+            using (var geometry = Direct2D1Platform.Direct2D1Factory.CreateRectangleGeometry(destRect.ToDirect2D()))
             {
                 if (d2dOpacityMask.PlatformBrush != null)
                 {
@@ -223,8 +225,8 @@ namespace Avalonia.Direct2D1.Media
                     if (d2dBrush.PlatformBrush != null)
                     {
                         _deviceContext.DrawLine(
-                            p1.ToSharpDX(),
-                            p2.ToSharpDX(),
+                            p1.ToVortice(),
+                            p2.ToVortice(),
                             d2dBrush.PlatformBrush,
                             (float)pen.Thickness,
                             d2dStroke);
@@ -248,7 +250,7 @@ namespace Avalonia.Direct2D1.Media
                     if (d2dBrush.PlatformBrush != null)
                     {
                         var impl = (GeometryImpl)geometry;
-                        _deviceContext.FillGeometry(impl.Geometry, d2dBrush.PlatformBrush);
+                        _deviceContext.FillGeometry(impl.Geometry, d2dBrush.PlatformBrush, null);
                     }
                 }
             }
@@ -286,18 +288,18 @@ namespace Avalonia.Direct2D1.Media
                     {
                         if (isRounded)
                         {
-                            _deviceContext.FillRoundedRectangle(
-                                new RoundedRectangle
-                                {
-                                    Rect = new RawRectangleF(
+                            var roundedRect = new RoundedRectangle
+                            {
+                                Rect = new Vortice.RawRectF(
                                         (float)rect.X,
                                         (float)rect.Y,
                                         (float)rect.Right,
                                         (float)rect.Bottom),
-                                    RadiusX = (float)radiusX,
-                                    RadiusY = (float)radiusY
-                                },
-                                b.PlatformBrush);
+                                RadiusX = (float)radiusX,
+                                RadiusY = (float)radiusY
+                            };
+
+                            _deviceContext.FillRoundedRectangle(ref roundedRect, b.PlatformBrush);
                         }
                         else
                         {
@@ -352,7 +354,7 @@ namespace Avalonia.Direct2D1.Media
                 {
                     if (brush.PlatformBrush != null)
                     {
-                        impl.TextLayout.Draw(renderer, (float)origin.X, (float)origin.Y);
+                        impl.TextLayout.Draw(IntPtr.Zero, renderer, (float)origin.X, (float)origin.Y);
                     }
                 }
             }
@@ -369,8 +371,11 @@ namespace Avalonia.Direct2D1.Media
             {
                 var glyphRunImpl = (GlyphRunImpl)glyphRun.GlyphRunImpl;
 
-                _renderTarget.DrawGlyphRun(glyphRun.BaselineOrigin.ToSharpDX(), glyphRunImpl.GlyphRun,
-                    brush.PlatformBrush, MeasuringMode.Natural);
+                _renderTarget.DrawGlyphRun(
+                    glyphRun.BaselineOrigin.ToVortice(), 
+                    glyphRunImpl.GlyphRun,
+                    brush.PlatformBrush,
+                    Vortice.DCommon.MeasuringMode.Natural);
             }
         }
 
@@ -383,7 +388,7 @@ namespace Avalonia.Direct2D1.Media
             else
             {
                 var platform = AvaloniaLocator.Current.GetService<IPlatformRenderInterface>();
-                var dpi = new Vector(_deviceContext.DotsPerInch.Width, _deviceContext.DotsPerInch.Height);
+                var dpi = new Vector(_deviceContext.Dpi.Width, _deviceContext.Dpi.Height);
                 var pixelSize = PixelSize.FromSizeWithDpi(size, dpi);
                 return (IDrawingContextLayerImpl)platform.CreateRenderTargetBitmap(pixelSize, dpi);
             }
@@ -396,7 +401,7 @@ namespace Avalonia.Direct2D1.Media
         /// <returns>A disposable used to undo the clip rectangle.</returns>
         public void PushClip(Rect clip)
         {
-            _deviceContext.PushAxisAlignedClip(clip.ToSharpDX(), AntialiasMode.PerPrimitive);
+            _deviceContext.PushAxisAlignedClip(clip.ToVortice(), AntialiasMode.PerPrimitive);
         }
 
         public void PushClip(RoundedRect clip)
@@ -410,8 +415,8 @@ namespace Avalonia.Direct2D1.Media
             _deviceContext.PopAxisAlignedClip();
         }
 
-        readonly Stack<Layer> _layers = new Stack<Layer>();
-        private readonly Stack<Layer> _layerPool = new Stack<Layer>();
+        readonly Stack<ID2D1Layer> _layers = new Stack<ID2D1Layer>();
+        private readonly Stack<ID2D1Layer> _layerPool = new Stack<ID2D1Layer>();
         /// <summary>
         /// Pushes an opacity value.
         /// </summary>
@@ -424,11 +429,11 @@ namespace Avalonia.Direct2D1.Media
                 var parameters = new LayerParameters
                 {
                     ContentBounds = PrimitiveExtensions.RectangleInfinite,
-                    MaskTransform = PrimitiveExtensions.Matrix3x2Identity,
+                    MaskTransform = Matrix3x2.Identity,
                     Opacity = (float)opacity,
                 };
 
-                var layer = _layerPool.Count != 0 ? _layerPool.Pop() : new Layer(_deviceContext);
+                var layer = _layerPool.Count != 0 ? _layerPool.Pop() : _deviceContext.CreateLayer();
                 _deviceContext.PushLayer(ref parameters, layer);
 
                 _layers.Push(layer);
@@ -503,26 +508,22 @@ namespace Avalonia.Direct2D1.Media
                         // We need to ensure the size we're requesting is an integer pixel size, otherwise
                         // D2D alters the DPI of the render target, which messes stuff up. PixelSize.FromSize
                         // will do the rounding for us.
-                        var dpi = new Vector(_deviceContext.DotsPerInch.Width, _deviceContext.DotsPerInch.Height);
+                        var dpi = new Vector(_deviceContext.Dpi.Width, _deviceContext.Dpi.Height);
                         var pixelSize = PixelSize.FromSizeWithDpi(intermediateSize, dpi);
 
-                        using (var intermediate = new BitmapRenderTarget(
-                            _deviceContext,
-                            CompatibleRenderTargetOptions.None,
-                            pixelSize.ToSizeWithDpi(dpi).ToSharpDX()))
-                        {
-                            using (var ctx = new RenderTarget(intermediate).CreateDrawingContext(_visualBrushRenderer))
-                            {
-                                intermediate.Clear(null);
-                                _visualBrushRenderer.RenderVisualBrush(ctx, visualBrush);
-                            }
+                        using RenderTarget intermediate = new(_deviceContext, pixelSize.ToSizeWithDpi(dpi));
 
-                            return new ImageBrushImpl(
-                                visualBrush,
-                                _deviceContext,
-                                new D2DBitmapImpl(intermediate.Bitmap),
-                                destinationRect.Size);
+                        using (var ctx = intermediate.CreateDrawingContext(_visualBrushRenderer))
+                        {
+                            intermediate.Clear();
+                            _visualBrushRenderer.RenderVisualBrush(ctx, visualBrush);
                         }
+
+                        return new ImageBrushImpl(
+                            visualBrush,
+                            _deviceContext,
+                            new D2DRenderTargetBitmapImpl(intermediate),
+                            destinationRect.Size);
                     }
                 }
                 else
@@ -539,11 +540,11 @@ namespace Avalonia.Direct2D1.Media
             var parameters = new LayerParameters
             {
                 ContentBounds = PrimitiveExtensions.RectangleInfinite,
-                MaskTransform = PrimitiveExtensions.Matrix3x2Identity,
+                MaskTransform = Matrix3x2.Identity,
                 Opacity = 1,
                 GeometricMask = ((GeometryImpl)clip).Geometry
             };
-            var layer = _layerPool.Count != 0 ? _layerPool.Pop() : new Layer(_deviceContext);
+            var layer = _layerPool.Count != 0 ? _layerPool.Pop() : _deviceContext.CreateLayer();
             _deviceContext.PushLayer(ref parameters, layer);
 
             _layers.Push(layer);
@@ -570,11 +571,11 @@ namespace Avalonia.Direct2D1.Media
             var parameters = new LayerParameters
             {
                 ContentBounds = PrimitiveExtensions.RectangleInfinite,
-                MaskTransform = PrimitiveExtensions.Matrix3x2Identity,
+                MaskTransform = Matrix3x2.Identity,
                 Opacity = 1,
                 OpacityBrush = CreateBrush(mask, bounds).PlatformBrush
             };
-            var layer = _layerPool.Count != 0 ? _layerPool.Pop() : new Layer(_deviceContext);
+            var layer = _layerPool.Count != 0 ? _layerPool.Pop() : _deviceContext.CreateLayer();
             _deviceContext.PushLayer(ref parameters, layer);
 
             _layers.Push(layer);
