@@ -1,53 +1,45 @@
 using System;
 using Avalonia.OpenGL.Surfaces;
+using JetBrains.Annotations;
 
 namespace Avalonia.OpenGL.Egl
 {
     public abstract class EglGlPlatformSurfaceBase : IGlPlatformSurface
     {
-        public interface IEglWindowGlPlatformSurfaceInfo
-        {
-            IntPtr Handle { get; }
-            PixelSize Size { get; }
-            double Scaling { get; }
-        }
-
         public abstract IGlPlatformSurfaceRenderTarget CreateGlRenderTarget();
     }
 
-    public abstract class EglPlatformSurfaceRenderTargetBase  : IGlPlatformSurfaceRenderTarget
+    public abstract class EglPlatformSurfaceRenderTargetBase : IGlPlatformSurfaceRenderTarget
     {
-        private readonly EglPlatformOpenGlInterface _egl;
+        [NotNull] protected EglPlatformOpenGlInterface Egl { get; }
+        [NotNull] protected IWindowGlPlatformSurfaceInfo WindowSurfaceInfo { get; }
 
-        protected EglPlatformSurfaceRenderTargetBase(EglPlatformOpenGlInterface egl)
+        protected EglPlatformSurfaceRenderTargetBase([NotNull] EglPlatformOpenGlInterface egl,
+                                                     [NotNull] IWindowGlPlatformSurfaceInfo windowSurfaceInfo)
         {
-            _egl = egl;
+            Egl = egl ?? throw new ArgumentNullException(nameof(egl));
+            WindowSurfaceInfo = windowSurfaceInfo ?? throw new ArgumentNullException(nameof(windowSurfaceInfo));
         }
 
         public virtual void Dispose()
         {
-            
         }
 
         public abstract IGlPlatformSurfaceRenderingSession BeginDraw();
 
-        protected IGlPlatformSurfaceRenderingSession BeginDraw(EglSurface surface,
-            EglGlPlatformSurfaceBase.IEglWindowGlPlatformSurfaceInfo info, Action onFinish = null, bool isYFlipped = false)
+        protected IGlPlatformSurfaceRenderingSession BeginDraw(EglSurface surface, Action onFinish = null, bool isYFlipped = false)
         {
-
-            var restoreContext = _egl.PrimaryEglContext.MakeCurrent(surface);
+            var restoreContext = Egl.PrimaryEglContext.MakeCurrent(surface);
             var success = false;
             try
             {
-                var egli = _egl.Display.EglInterface;
+                var egli = Egl.Display.EglInterface;
                 egli.WaitClient();
                 egli.WaitGL();
                 egli.WaitNative(EglConsts.EGL_CORE_NATIVE_ENGINE);
-                
-                _egl.PrimaryContext.GlInterface.BindFramebuffer(GlConsts.GL_FRAMEBUFFER, 0);
-                
+
                 success = true;
-                return new Session(_egl.Display, _egl.PrimaryEglContext, surface, info,  restoreContext, onFinish, isYFlipped);
+                return new Session(Egl.PrimaryEglContext, surface, WindowSurfaceInfo, restoreContext, onFinish, isYFlipped);
             }
             finally
             {
@@ -55,46 +47,28 @@ namespace Avalonia.OpenGL.Egl
                     restoreContext.Dispose();
             }
         }
-        
-        class Session : IGlPlatformSurfaceRenderingSession
+
+        private sealed class Session : GlPlatformRenderingSessionBase<EglContext>
         {
-            private readonly EglContext _context;
             private readonly EglSurface _glSurface;
-            private readonly EglGlPlatformSurfaceBase.IEglWindowGlPlatformSurfaceInfo _info;
-            private readonly EglDisplay _display;
-            private readonly IDisposable _restoreContext;
-            private readonly Action _onFinish;
 
-
-            public Session(EglDisplay display, EglContext context,
-                EglSurface glSurface, EglGlPlatformSurfaceBase.IEglWindowGlPlatformSurfaceInfo info,
-                 IDisposable restoreContext, Action onFinish, bool isYFlipped)
+            public Session([NotNull] EglContext context, [NotNull] EglSurface glSurface,
+                           [NotNull] IWindowGlPlatformSurfaceInfo info,
+                           [NotNull] IDisposable restoreContext, [CanBeNull] Action onFinish,
+                           bool isYFlipped) : base(context, info, restoreContext, onFinish, isYFlipped)
             {
-                IsYFlipped = isYFlipped;
-                _context = context;
-                _display = display;
                 _glSurface = glSurface;
-                _info = info;
-                _restoreContext = restoreContext;
-                _onFinish = onFinish;
             }
 
-            public void Dispose()
+            protected override void DisposeCore()
             {
-                _context.GlInterface.Flush();
-                _display.EglInterface.WaitGL();
+                var display = GlContext.Display;
+                display.EglInterface.WaitGL();
                 _glSurface.SwapBuffers();
-                _display.EglInterface.WaitClient();
-                _display.EglInterface.WaitGL();
-                _display.EglInterface.WaitNative(EglConsts.EGL_CORE_NATIVE_ENGINE);
-                _restoreContext.Dispose();
-                _onFinish?.Invoke();
+                display.EglInterface.WaitClient();
+                display.EglInterface.WaitGL();
+                display.EglInterface.WaitNative(EglConsts.EGL_CORE_NATIVE_ENGINE);
             }
-
-            public IGlContext Context => _context;
-            public PixelSize Size => _info.Size;
-            public double Scaling => _info.Scaling;
-            public bool IsYFlipped { get; }
         }
     }
 }

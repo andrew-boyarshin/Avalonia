@@ -4,14 +4,15 @@ using System.Collections.Generic;
 using System.IO;
 using Avalonia.Controls;
 using Avalonia.Controls.Platform.Surfaces;
+using Avalonia.Direct2D1.Composition;
 using Avalonia.Direct2D1.Media;
 using Avalonia.Direct2D1.Media.Imaging;
 using Avalonia.Media;
 using Avalonia.Media.Imaging;
 using Avalonia.Platform;
 using Avalonia.Visuals.Media.Imaging;
+using Avalonia.Win32.WinRT.Composition;
 using SharpGen.Runtime;
-using Vortice.DirectWrite;
 using GlyphRun = Avalonia.Media.GlyphRun;
 using TextAlignment = Avalonia.Media.TextAlignment;
 
@@ -86,7 +87,7 @@ namespace Avalonia.Direct2D1
                 else
                     throw new AvaloniaInternalException("Failed to initialize Direct2D");
 
-                result = DWrite.DWriteCreateFactory(out IDWriteFactory1 factory);
+                result = Vortice.DirectWrite.DWrite.DWriteCreateFactory(out Vortice.DirectWrite.IDWriteFactory1 factory);
 
                 if (result.Success)
                     DirectWriteFactory = factory;
@@ -132,13 +133,14 @@ namespace Avalonia.Direct2D1
         {
 #if DEBUG
             Configuration.EnableObjectTracking = true;
-            Configuration.EnableObjectLifetimeTracing = true;
+            // Configuration.EnableObjectLifetimeTracing = true;
 #endif
             InitializeDirect2D();
             AvaloniaLocator.CurrentMutable
                 .Bind<IPlatformRenderInterface>().ToConstant(s_instance)
                 .Bind<IFontManagerImpl>().ToConstant(new FontManagerImpl())
-                .Bind<ITextShaperImpl>().ToConstant(new TextShaperImpl());
+                .Bind<ITextShaperImpl>().ToConstant(new TextShaperImpl())
+                .Bind<WinUICompositorConnectionBase>().ToLazy(WinUIDirect2DCompositorConnection.TryCreateAndRegister);
             Configuration.EnableReleaseOnFinalizer = true;
         }
 
@@ -310,13 +312,13 @@ namespace Avalonia.Direct2D1
                 return new GlyphRunImpl(run);
             }
 
-            run.Offsets = new GlyphOffset[glyphCount];
+            run.Offsets = new Vortice.DirectWrite.GlyphOffset[glyphCount];
 
             for (var i = 0; i < glyphCount; i++)
             {
                 var (x, y) = glyphRun.GlyphOffsets[i];
 
-                run.Offsets[i] = new GlyphOffset
+                run.Offsets[i] = new Vortice.DirectWrite.GlyphOffset
                 {
                     AdvanceOffset = (float)x,
                     AscenderOffset = (float)y

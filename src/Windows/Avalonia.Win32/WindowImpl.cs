@@ -24,7 +24,7 @@ namespace Avalonia.Win32
     /// <summary>
     /// Window implementation for Win32 platform.
     /// </summary>
-    public partial class WindowImpl : IWindowImpl, EglGlPlatformSurface.IEglWindowGlPlatformSurfaceInfo,
+    public partial class WindowImpl : IWindowImpl, IWindowGlPlatformSurfaceInfo,
         ITopLevelImplWithNativeControlHost
     {
         private static readonly List<WindowImpl> s_instances = new List<WindowImpl>();
@@ -110,37 +110,23 @@ namespace Avalonia.Win32
             };
             _rendererLock = new ManagedDeferredRendererLock();
 
-            var glPlatform = AvaloniaLocator.Current.GetService<IPlatformOpenGlInterface>();
-
-            var compositionConnector = AvaloniaLocator.Current.GetService<WinUICompositorConnection>();
-
-            _isUsingComposition = compositionConnector is { } &&
-                glPlatform is EglPlatformOpenGlInterface egl &&
-                    egl.Display is AngleWin32EglDisplay angleDisplay &&
-                    angleDisplay.PlatformApi == AngleOptions.PlatformApi.DirectX11;
-
             CreateWindow();
             _framebuffer = new FramebufferManager(_hwnd);
-            
-            if (glPlatform != null)
+
+            if (AvaloniaLocator.Current.GetService<WinUICompositorConnectionBase>() is { } compositionConnector)
             {
-                if (_isUsingComposition)
-                {
-                    var cgl = new WinUiCompositedWindowSurface(compositionConnector, this);
-                    _blurHost = cgl;
-
-                    _gl = cgl;
-
-                    _isUsingComposition = true;
-                }
-                else
-                {
-                    if (glPlatform is EglPlatformOpenGlInterface egl2)
-                        _gl = new EglGlPlatformSurface(egl2, this);
-                    else if (glPlatform is WglPlatformOpenGlInterface wgl)
-                        _gl = new WglGlPlatformSurface(wgl.PrimaryContext, this);
-                }
+                _gl = compositionConnector.CreateGlPlatformSurface(this);
+                _isUsingComposition = true;
             }
+
+            _gl ??= AvaloniaLocator.Current.GetService<IPlatformOpenGlInterface>() switch
+            {
+                EglPlatformOpenGlInterface egl => new EglGlPlatformSurface(egl, this),
+                WglPlatformOpenGlInterface wgl => new WglGlPlatformSurface(wgl.PrimaryContext, this),
+                _ => null
+            };
+
+            _blurHost = _gl as IBlurHost;
 
             Screen = new ScreenImpl();
 
@@ -357,63 +343,61 @@ namespace Avalonia.Win32
 
         private WindowTransparencyLevel Win10EnableBlur(WindowTransparencyLevel transparencyLevel)
         {
-            if (_isUsingComposition)
+            if (_blurHost is { } blurHost)
             {
-                _blurHost?.SetBlur(transparencyLevel >= WindowTransparencyLevel.Blur);
+                blurHost.SetBlur(transparencyLevel >= WindowTransparencyLevel.Blur);
 
                 return transparencyLevel;
             }
-            else
+
+            bool canUseAcrylic = Win32Platform.WindowsVersion.Major > 10 || Win32Platform.WindowsVersion.Build >= 19628;
+
+            var accent = new AccentPolicy();
+            var accentStructSize = Marshal.SizeOf(accent);
+
+            if (transparencyLevel == WindowTransparencyLevel.AcrylicBlur && !canUseAcrylic)
             {
-                bool canUseAcrylic = Win32Platform.WindowsVersion.Major > 10 || Win32Platform.WindowsVersion.Build >= 19628;
-
-                var accent = new AccentPolicy();
-                var accentStructSize = Marshal.SizeOf(accent);
-
-                if (transparencyLevel == WindowTransparencyLevel.AcrylicBlur && !canUseAcrylic)
-                {
-                    transparencyLevel = WindowTransparencyLevel.Blur;
-                }
-
-                switch (transparencyLevel)
-                {
-                    default:
-                    case WindowTransparencyLevel.None:
-                        accent.AccentState = AccentState.ACCENT_DISABLED;
-                        break;
-
-                    case WindowTransparencyLevel.Transparent:
-                        accent.AccentState = AccentState.ACCENT_ENABLE_TRANSPARENTGRADIENT;
-                        break;
-
-                    case WindowTransparencyLevel.Blur:
-                        accent.AccentState = AccentState.ACCENT_ENABLE_BLURBEHIND;
-                        break;
-
-                    case WindowTransparencyLevel.AcrylicBlur:
-                    case (WindowTransparencyLevel.AcrylicBlur + 1): // hack-force acrylic.
-                        accent.AccentState = AccentState.ACCENT_ENABLE_ACRYLIC;
-                        transparencyLevel = WindowTransparencyLevel.AcrylicBlur;
-                        break;
-                }
-
-                accent.AccentFlags = 2;
-                accent.GradientColor = 0x01000000;
-
-                var accentPtr = Marshal.AllocHGlobal(accentStructSize);
-                Marshal.StructureToPtr(accent, accentPtr, false);
-
-                var data = new WindowCompositionAttributeData();
-                data.Attribute = WindowCompositionAttribute.WCA_ACCENT_POLICY;
-                data.SizeOfData = accentStructSize;
-                data.Data = accentPtr;
-
-                SetWindowCompositionAttribute(_hwnd, ref data);
-
-                Marshal.FreeHGlobal(accentPtr);
-
-                return transparencyLevel;
+                transparencyLevel = WindowTransparencyLevel.Blur;
             }
+
+            switch (transparencyLevel)
+            {
+                default:
+                case WindowTransparencyLevel.None:
+                    accent.AccentState = AccentState.ACCENT_DISABLED;
+                    break;
+
+                case WindowTransparencyLevel.Transparent:
+                    accent.AccentState = AccentState.ACCENT_ENABLE_TRANSPARENTGRADIENT;
+                    break;
+
+                case WindowTransparencyLevel.Blur:
+                    accent.AccentState = AccentState.ACCENT_ENABLE_BLURBEHIND;
+                    break;
+
+                case WindowTransparencyLevel.AcrylicBlur:
+                case (WindowTransparencyLevel.AcrylicBlur + 1): // hack-force acrylic.
+                    accent.AccentState = AccentState.ACCENT_ENABLE_ACRYLIC;
+                    transparencyLevel = WindowTransparencyLevel.AcrylicBlur;
+                    break;
+            }
+
+            accent.AccentFlags = 2;
+            accent.GradientColor = 0x01000000;
+
+            var accentPtr = Marshal.AllocHGlobal(accentStructSize);
+            Marshal.StructureToPtr(accent, accentPtr, false);
+
+            var data = new WindowCompositionAttributeData();
+            data.Attribute = WindowCompositionAttribute.WCA_ACCENT_POLICY;
+            data.SizeOfData = accentStructSize;
+            data.Data = accentPtr;
+
+            SetWindowCompositionAttribute(_hwnd, ref data);
+
+            Marshal.FreeHGlobal(accentPtr);
+
+            return transparencyLevel;
         }
 
         public IEnumerable<object> Surfaces => new object[] { Handle, _gl, _framebuffer };
@@ -457,14 +441,15 @@ namespace Avalonia.Win32
             if (customRendererFactory != null)
                 return customRendererFactory.Create(root, loop);
 
-            return Win32Platform.UseDeferredRendering 
-                ?  _isUsingComposition 
-                    ? new DeferredRenderer(root, loop)
-                    {
-                        RenderOnlyOnRenderThread = true
-                    } 
-                    : (IRenderer)new DeferredRenderer(root, loop, rendererLock: _rendererLock)
-                : new ImmediateRenderer(root);
+            if (!Win32Platform.UseDeferredRendering)
+                return new ImmediateRenderer(root);
+
+            IRenderer renderer = null;
+            if (_isUsingComposition)
+                renderer = AvaloniaLocator.Current.GetService<WinUICompositorConnectionBase>()
+                                          .CreateDeferredRenderer(root, loop, _rendererLock);
+            renderer ??= new DeferredRenderer(root, loop, rendererLock: _rendererLock);
+            return renderer;
         }
 
         public void Resize(Size value)
@@ -1240,7 +1225,7 @@ namespace Avalonia.Win32
         }
 #endif
 
-        PixelSize EglGlPlatformSurface.IEglWindowGlPlatformSurfaceInfo.Size
+        PixelSize IWindowGlPlatformSurfaceInfo.Size
         {
             get
             {
@@ -1252,9 +1237,9 @@ namespace Avalonia.Win32
             }
         }
 
-        double EglGlPlatformSurface.IEglWindowGlPlatformSurfaceInfo.Scaling => RenderScaling;
+        double IWindowGlPlatformSurfaceInfo.Scaling => RenderScaling;
 
-        IntPtr EglGlPlatformSurface.IEglWindowGlPlatformSurfaceInfo.Handle => Handle.Handle;
+        IntPtr IWindowGlPlatformSurfaceInfo.Handle => Handle.Handle;
 
         public void SetExtendClientAreaToDecorationsHint(bool hint)
         {

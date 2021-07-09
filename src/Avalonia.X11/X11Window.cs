@@ -201,7 +201,7 @@ namespace Avalonia.X11
             InitializeIme();
         }
 
-        class SurfaceInfo  : EglGlPlatformSurface.IEglWindowGlPlatformSurfaceInfo
+        class SurfaceInfo  : IWindowGlPlatformSurfaceInfo
         {
             private readonly X11Window _window;
             private readonly IntPtr _display;

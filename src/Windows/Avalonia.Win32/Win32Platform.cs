@@ -20,6 +20,7 @@ using Avalonia.Utilities;
 using Avalonia.Win32;
 using Avalonia.Win32.Input;
 using Avalonia.Win32.Interop;
+using Avalonia.Win32.WinRT.Composition;
 using static Avalonia.Win32.Interop.UnmanagedMethods;
 
 namespace Avalonia
@@ -59,7 +60,7 @@ namespace Avalonia
         /// Supported on Windows 10 build 16299 and above. Ignored on other versions.
         /// This is recommended if you need to use AcrylicBlur or acrylic in your applications.
         /// </remarks>
-        public bool UseWindowsUIComposition { get; set; } = false;
+        public bool UseWindowsUIComposition { get; set; } = true;
     }
 }
 
@@ -115,9 +116,9 @@ namespace Avalonia.Win32
                 .Bind<PlatformHotkeyConfiguration>().ToSingleton<PlatformHotkeyConfiguration>()
                 .Bind<IPlatformIconLoader>().ToConstant(s_instance)
                 .Bind<NonPumpingLockHelper.IHelperImpl>().ToConstant(new NonPumpingSyncContext.HelperImpl())
-                .Bind<IMountedVolumeInfoProvider>().ToConstant(new WindowsMountedVolumeInfoProvider());
-
-            Win32GlManager.Initialize();
+                .Bind<IMountedVolumeInfoProvider>().ToConstant(new WindowsMountedVolumeInfoProvider())
+                .Bind<IPlatformOpenGlInterface>().ToLazy(Win32GlManager.CreatePlatformOpenGlInterface)
+                .BindDefault<WinUICompositorConnectionBase>().ToLazy(Win32GlManager.CreateCompositorConnection);
 
             _uiThread = Thread.CurrentThread;
 

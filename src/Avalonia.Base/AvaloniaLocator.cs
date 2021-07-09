@@ -33,60 +33,91 @@ namespace Avalonia
             return _registry.TryGetValue(t, out rv) ? rv() : _parentScope?.GetService(t);
         }
 
-        public class RegistrationHelper<TService>
+        private AvaloniaLocator AddOrUpdate<TService>(Func<object> creator)
+        {
+            _registry[typeof(TService)] = creator;
+            return this;
+        }
+
+        private AvaloniaLocator Add<TService>(Func<object> creator, bool shouldIgnoreWhenBound)
+        {
+            var type = typeof(TService);
+
+            if (!shouldIgnoreWhenBound)
+            {
+                _registry[type] = creator;
+            }
+            else if (GetService(type) is null)
+            {
+                try
+                {
+                    _registry.Add(type, creator);
+                }
+                catch (ArgumentException)
+                {
+                    // thread race lost
+                }
+            }
+
+            return this;
+        }
+
+        public readonly ref struct RegistrationHelper<TService>
         {
             private readonly AvaloniaLocator _locator;
+            private readonly bool _shouldIgnoreWhenBound;
 
-            public RegistrationHelper(AvaloniaLocator locator)
+            internal RegistrationHelper(AvaloniaLocator locator, bool shouldIgnoreWhenBound)
             {
                 _locator = locator;
+                _shouldIgnoreWhenBound = shouldIgnoreWhenBound;
             }
 
-            public AvaloniaLocator ToConstant<TImpl>(TImpl constant) where TImpl : TService
-            {
-                _locator._registry[typeof (TService)] = () => constant;
-                return _locator;
-            }
+            public AvaloniaLocator ToConstant<TImpl>(TImpl constant) where TImpl : TService =>
+                _locator.Add<TService>(() => constant, _shouldIgnoreWhenBound);
 
-            public AvaloniaLocator ToFunc<TImlp>(Func<TImlp> func) where TImlp : TService
-            {
-                _locator._registry[typeof (TService)] = () => func();
-                return _locator;
-            }
+            public AvaloniaLocator ToFunc<TImpl>(Func<TImpl> func) where TImpl : TService =>
+                _locator.Add<TService>(() => func(), _shouldIgnoreWhenBound);
 
-            public AvaloniaLocator ToLazy<TImlp>(Func<TImlp> func) where TImlp : TService
+            public AvaloniaLocator ToLazy<TImpl>(Func<TImpl> func) where TImpl : TService
             {
                 var constructed = false;
-                TImlp instance = default;
-                _locator._registry[typeof (TService)] = () =>
-                {
-                    if (!constructed)
+                TImpl instance = default;
+                return _locator.Add<TService>(
+                    () =>
                     {
-                        instance = func();
-                        constructed = true;
-                    }
+                        if (!constructed)
+                        {
+                            instance = func();
+                            constructed = true;
+                        }
 
-                    return instance;
-                };
-                return _locator;
+                        return instance;
+                    },
+                    _shouldIgnoreWhenBound
+                );
             }
-            
+
             public AvaloniaLocator ToSingleton<TImpl>() where TImpl : class, TService, new()
             {
                 TImpl instance = null;
-                return ToFunc(() => instance ?? (instance = new TImpl()));
+                return _locator.Add<TService>(() => instance ??= new TImpl(), _shouldIgnoreWhenBound);
             }
 
-            public AvaloniaLocator ToTransient<TImpl>() where TImpl : class, TService, new() => ToFunc(() => new TImpl());
+            public AvaloniaLocator ToTransient<TImpl>() where TImpl : class, TService, new() =>
+                _locator.Add<TService>(static() => new TImpl(), _shouldIgnoreWhenBound);
         }
 
-        public RegistrationHelper<T> Bind<T>() => new RegistrationHelper<T>(this);
+        public RegistrationHelper<T> Bind<T>() => new(this, false);
+        public RegistrationHelper<T> BindDefault<T>() => new(this, true);
 
+        public AvaloniaLocator BindToSelf<T>(T constant) => AddOrUpdate<T>(() => constant);
 
-        public AvaloniaLocator BindToSelf<T>(T constant)
-            => Bind<T>().ToConstant(constant);
-
-        public AvaloniaLocator BindToSelfSingleton<T>() where T : class, new() => Bind<T>().ToSingleton<T>();
+        public AvaloniaLocator BindToSelfSingleton<T>() where T : class, new()
+        {
+            T instance = null;
+            return AddOrUpdate<T>(() => instance ??= new T());
+        }
 
         class ResolverDisposable : IDisposable
         {

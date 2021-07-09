@@ -7,35 +7,36 @@ using Avalonia.Win32.WinRT.Composition;
 
 namespace Avalonia.Win32
 {
-    static class Win32GlManager
+    internal static class Win32GlManager
     {
-        private static readonly Version Windows7 = new Version(6, 1);
+        private static readonly Version Windows7 = new(6, 1);
 
-        public static void Initialize()
+        public static IPlatformOpenGlInterface CreatePlatformOpenGlInterface()
         {
-            AvaloniaLocator.CurrentMutable.Bind<IPlatformOpenGlInterface>().ToLazy<IPlatformOpenGlInterface>(() =>
-            {
-                var opts = AvaloniaLocator.Current.GetService<Win32PlatformOptions>();
-                if (opts?.UseWgl == true)
-                {
-                    var wgl = WglPlatformOpenGlInterface.TryCreate();
-                    return wgl;
-                }
+            var opts = AvaloniaLocator.Current.GetService<Win32PlatformOptions>();
 
-                if (opts?.AllowEglInitialization ?? Win32Platform.WindowsVersion > Windows7)
-                {
-                    var egl = EglPlatformOpenGlInterface.TryCreate(() => new AngleWin32EglDisplay());
+            if (opts?.UseWgl == true)
+                return WglPlatformOpenGlInterface.TryCreate();
 
-                    if (egl != null && (opts?.UseWindowsUIComposition ?? true) == true)
-                    {
-                        WinUICompositorConnection.TryCreateAndRegister(egl);
-                    }
+            if (opts?.AllowEglInitialization ?? Win32Platform.WindowsVersion > Windows7)
+                return EglPlatformOpenGlInterface.TryCreate(() => new AngleWin32EglDisplay());
 
-                    return egl;
-                }
+            return null;
+        }
 
+        public static WinUICompositorConnectionBase CreateCompositorConnection()
+        {
+            var platformGl = AvaloniaLocator.Current.GetService<IPlatformOpenGlInterface>();
+            var opts = AvaloniaLocator.Current.GetService<Win32PlatformOptions>();
+
+            if (!(opts?.UseWindowsUIComposition ?? true))
                 return null;
-            });
+
+            return platformGl switch
+            {
+                EglPlatformOpenGlInterface egl => WinUIAngleEglCompositorConnection.TryCreateAndRegister(egl),
+                _ => null
+            };
         }
     }
 }

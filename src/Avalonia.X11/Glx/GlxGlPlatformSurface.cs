@@ -1,19 +1,16 @@
 using System;
 using Avalonia.OpenGL;
-using Avalonia.OpenGL.Egl;
 using Avalonia.OpenGL.Surfaces;
-using static Avalonia.OpenGL.GlConsts;
 
 namespace Avalonia.X11.Glx
 {
-    class GlxGlPlatformSurface: IGlPlatformSurface
+    internal sealed class GlxGlPlatformSurface: IGlPlatformSurface
     {
-
         private readonly GlxDisplay _display;
         private readonly GlxContext _context;
-        private readonly EglGlPlatformSurface.IEglWindowGlPlatformSurfaceInfo _info;
+        private readonly IWindowGlPlatformSurfaceInfo _info;
         
-        public GlxGlPlatformSurface(GlxDisplay display, GlxContext context, EglGlPlatformSurface.IEglWindowGlPlatformSurfaceInfo info)
+        public GlxGlPlatformSurface(GlxDisplay display, GlxContext context, IWindowGlPlatformSurfaceInfo info)
         {
             _display = display;
             _context = context;
@@ -25,12 +22,12 @@ namespace Avalonia.X11.Glx
             return new RenderTarget(_context, _info);
         }
 
-        class RenderTarget : IGlPlatformSurfaceRenderTarget
+        private sealed class RenderTarget : IGlPlatformSurfaceRenderTarget
         {
             private readonly GlxContext _context;
-            private readonly EglGlPlatformSurface.IEglWindowGlPlatformSurfaceInfo _info;
+            private readonly IWindowGlPlatformSurfaceInfo _info;
 
-            public RenderTarget(GlxContext context,  EglGlPlatformSurface.IEglWindowGlPlatformSurfaceInfo info)
+            public RenderTarget(GlxContext context,  IWindowGlPlatformSurfaceInfo info)
             {
                 _context = context;
                 _info = info;
@@ -44,40 +41,22 @@ namespace Avalonia.X11.Glx
             public IGlPlatformSurfaceRenderingSession BeginDraw()
             {
                 var oldContext = _context.MakeCurrent(_info.Handle);
-                
-                // Reset to default FBO first
-                _context.GlInterface.BindFramebuffer(GL_FRAMEBUFFER, 0);
-                    
                 return new Session(_context, _info, oldContext);
             }
-            
-            class Session : IGlPlatformSurfaceRenderingSession
+
+            private sealed class Session : GlPlatformRenderingSessionBase<GlxContext>
             {
-                private readonly GlxContext _context;
-                private readonly EglGlPlatformSurface.IEglWindowGlPlatformSurfaceInfo _info;
-                private readonly IDisposable _clearContext;
-                public IGlContext Context => _context;
-
-                public Session(GlxContext context, EglGlPlatformSurface.IEglWindowGlPlatformSurfaceInfo info,
-                    IDisposable clearContext)
+                public Session(GlxContext context, IWindowGlPlatformSurfaceInfo info,
+                               IDisposable clearContext) : base(context, info, clearContext)
                 {
-                    _context = context;
-                    _info = info;
-                    _clearContext = clearContext;
                 }
 
-                public void Dispose()
+                protected override void DisposeCore()
                 {
-                    _context.GlInterface.Flush();
-                    _context.Glx.WaitGL();
-                    _context.Display.SwapBuffers(_info.Handle);
-                    _context.Glx.WaitX();
-                    _clearContext.Dispose();
+                    GlContext.Glx.WaitGL();
+                    GlContext.Display.SwapBuffers(WindowSurfaceInfo.Handle);
+                    GlContext.Glx.WaitX();
                 }
-
-                public PixelSize Size => _info.Size;
-                public double Scaling => _info.Scaling;
-                public bool IsYFlipped { get; }
             }
         }
     }

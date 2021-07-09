@@ -1,0 +1,5 @@
+CannotSealType : Type 'Avalonia.AvaloniaLocator.RegistrationHelper<TService>' is actually (has the sealed modifier) sealed in the implementation but not sealed in the contract.
+TypeCannotChangeClassification : Type 'Avalonia.AvaloniaLocator.RegistrationHelper<TService>' is a 'ref struct' in the implementation but is a 'class' in the contract.
+MembersMustExist : Member 'public void Avalonia.AvaloniaLocator.RegistrationHelper<TService>..ctor(Avalonia.AvaloniaLocator)' does not exist in the implementation but it does exist in the contract.
+MembersMustExist : Member 'public Avalonia.AvaloniaLocator Avalonia.AvaloniaLocator.RegistrationHelper<TService>.ToFunc<TImlp>(System.Func<TImlp>)' does not exist in the implementation but it does exist in the contract.
+MembersMustExist : Member 'public Avalonia.AvaloniaLocator Avalonia.AvaloniaLocator.RegistrationHelper<TService>.ToLazy<TImlp>(System.Func<TImlp>)' does not exist in the implementation but it does exist in the contract.

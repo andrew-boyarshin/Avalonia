@@ -16,7 +16,7 @@ namespace Avalonia.Direct2D1.Media.Imaging
         public D2DRenderTargetBitmapImpl(ID2D1BitmapRenderTarget renderTarget)
             : base(renderTarget.Bitmap)
         {
-            Debug.WriteLine($"D2DRenderTargetBitmapImpl::new(0x{renderTarget.NativePointer.ToInt64():X}) Bitmap:0x{renderTarget.Bitmap.NativePointer.ToInt64():X}");
+            // Debug.WriteLine($"D2DRenderTargetBitmapImpl::new(0x{renderTarget.NativePointer.ToInt64():X}) Bitmap:0x{renderTarget.Bitmap.NativePointer.ToInt64():X}");
             _renderTarget = renderTarget;
         }
 
@@ -53,7 +53,7 @@ namespace Avalonia.Direct2D1.Media.Imaging
         public override void Dispose()
         {
             // Intentionally ignore base.Dispose (ID2D1BitmapRenderTarget.ReleaseBitmap)
-            Debug.WriteLine($"D2DRenderTargetBitmapImpl::Dispose(0x{_renderTarget.NativePointer.ToInt64():X}) Stack: {new StackTrace()}");
+            // Debug.WriteLine($"D2DRenderTargetBitmapImpl::Dispose(0x{_renderTarget.NativePointer.ToInt64():X}) Stack: {new StackTrace()}");
             _renderTarget.Dispose();
         }
 
